@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="33 192 324 266"><g fill="none" stroke="#333" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+<!-- quiet room, window and curtains -->
+<path d="M39 431V200h312v231" stroke="#ccc"/>
+<rect x="117" y="221" width="139" height="111" rx="2"/>
+<path d="M186 222v109m-68-56h137M110 216h153M111 334h151"/>
+<circle cx="213" cy="248" r="10" stroke="#aaa"/>
+<path d="M120 299q18-20 38 0t26 3m6 2q27-29 62-8" stroke="#bbb"/>
+<!-- reading lamp -->
+<path d="M75 296h24l12 32H63zM87 329v109m-14 1h28"/>
+<!-- sofa -->
+<rect x="119" y="355" width="148" height="65" rx="14" fill="#f4f4f4"/>
+<path d="M133 405q23-8 59-2 36-6 63 1"/>
+<path d="M119 391q-12-8-14 5v33q0 7 8 7h158q8 0 8-7v-33q-2-13-14-5l-5 23H124z" fill="#e9e9e9"/>
+<path d="m119 437-2 10m146-10 2 10"/>
+<rect x="141" y="367" width="32" height="28" rx="5" transform="rotate(-10 157 381)" fill="white"/>
+<!-- small plant -->
+<path d="M306 412v-29q-17-5-15-21 16 1 16 21m0 11q0-18 16-23 3 13-16 23"/>
+<path d="M293 412h26l-4 25h-18z" fill="#f3f3f3"/>
+<path d="M46 450h298" stroke="#bbb"/>
+</g></svg>
