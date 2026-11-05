@@ -5,6 +5,32 @@ const icon=k=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
 const button=(label,act,cls='')=>'<button data-act="'+act+'" class="'+cls+'">'+label+'</button>';
 const prompts=['他临时取消见面，也没跟我道歉。','我有点累，想找人说说。','有件开心的事想分享。'];
 let page='home',draft='',messages=[],signed=false,timer;
+const chatPrefix='warm-isle:wireframe:unfinished:';
+let chatId=crypto.randomUUID();
+function unfinished(){
+ return Object.keys(localStorage).filter(key=>key.startsWith(chatPrefix))
+  .map(key=>JSON.parse(localStorage.getItem(key))).filter(Boolean).sort((a,b)=>b.updated-a.updated);
+}
+function saveChat(){
+ if(!messages.length&&!draft){localStorage.removeItem(chatPrefix+chatId);return}
+ localStorage.setItem(chatPrefix+chatId,JSON.stringify({id:chatId,updated:Date.now(),draft,messages,understanding,pendingCard}));
+}
+function loadChat(chat){
+ chatId=chat?.id||crypto.randomUUID();
+ messages=chat?.messages||[];draft=chat?.draft||'';
+ understanding=chat?.understanding||'';pendingCard=chat?.pendingCard||null;target=0;
+}
+function removeCurrent(){
+ localStorage.removeItem(chatPrefix+chatId);loadChat(unfinished()[0]);
+ $('#scene').value=messages.length||draft?'resume':'first';
+}
+function conversationList(){
+ sheet('未结束的聊天',[...unfinished().map(chat=>button('','open:'+chat.id)),button('返回','close')]);
+ for(const entry of unfinished()){
+  const control=box.querySelector('[data-act="open:'+entry.id+'"]');
+  if(control)control.textContent=(entry.messages[0]?.[1]||entry.draft).slice(0,24);
+ }
+}
 function closeSheet(){if(box.open)box.close()}
 function sheet(title,items){$('#sheet').innerHTML='<h3>'+title+'</h3>'+items.join('');if(!box.open)box.showModal()}
 function stopIntro(){clearTimeout(timer);document.querySelectorAll('.intro,.skip').forEach(el=>el.remove())}
@@ -15,7 +41,7 @@ function show(next){
  $('#top').innerHTML='<h2>'+titles[next]+'</h2><div class="tools">'+(next==='home'?button(icon('mail')+'信箱','inbox')+button(icon('settings')+'设置','settings'):button('返回',next==='login'?'settings':'home'))+'</div>';
  const body=$('#body');body.classList.toggle('conversation',next==='chat');
  if(next==='home'){
- body.innerHTML='<div class="stage"><img class="room" src="room.svg" alt="窗边有沙发和落地灯的小屋"></div>'+(messages.length?'<div class="row">'+button('继续上次聊天','resume')+button('开启新聊天','new','quiet')+'</div>':'')+'<div class="compose"><small>小屿 · AI</small><h3>今天想聊些什么？</h3><div class="field"><textarea aria-label="你的第一句话" placeholder="从一句话开始……"></textarea><div class="row">'+button('不知道怎么开口','prompts','hint')+'<button data-act="send" class="primary">发送 ↑</button></div></div></div>';
+ body.innerHTML='<div class="stage"><img class="room" src="room.svg" alt="窗边有沙发和落地灯的小屋"></div>'+((messages.length||draft)?'<div class="row">'+button('继续上次聊天','resume')+button('开启新聊天','new','quiet')+'</div>':'')+(unfinished().some(c=>c.id!==chatId)?button('找回未结束的聊天','sessions','quiet'):'')+'<div class="compose"><small>小屿 · AI</small><h3>今天想聊些什么？</h3><div class="field"><textarea aria-label="你的第一句话" placeholder="从一句话开始……"></textarea><div class="row">'+button('不知道怎么开口','prompts','hint')+'<button data-act="send" class="primary">发送 ↑</button></div></div></div>';
  $('textarea').value=draft;updateSend();
  }else if(next==='chat'){
  renderChat(body);
@@ -28,17 +54,18 @@ function show(next){
  }
 }
 function updateSend(){$('[data-act="send"]').disabled=!draft.trim()}
-function fresh(){resetChat();messages=[];draft='';$('#scene').value='first';show('home');$('textarea').focus()}
+function fresh(){localStorage.removeItem(chatPrefix+chatId);loadChat();$('#scene').value='first';show('home');$('textarea').focus()}
 function replay(){show('home');intro()}
 $('#replay').onclick=replay;
-$('#scene').onchange=e=>{if(e.target.value==='tomorrow'){show('inbox');return}resetChat();draft='';messages=e.target.value==='resume'?[['me','我今天有点累。'],['ai','我在听。']]:[];show('home')};
-document.addEventListener('input',e=>{if(e.target.matches('#revision')){$('[data-act=apply]').disabled=!e.target.value.trim()}else if(e.target===document.querySelector('#body textarea')){draft=e.target.value;updateSend()}});
+$('#scene').onchange=e=>{if(e.target.value==='tomorrow'){show('inbox');return}loadChat(e.target.value==='resume'?unfinished()[0]:null);if(e.target.value==='resume'&&!messages.length&&!draft){messages=[['me','我今天有点累。'],['ai','我在听。']];saveChat()}show('home')};
+document.addEventListener('input',e=>{if(e.target.matches('#revision')){$('[data-act=apply]').disabled=!e.target.value.trim()}else if(e.target===document.querySelector('#body textarea')){draft=e.target.value;saveChat();updateSend()}});
 document.addEventListener('focusin',e=>{if(e.target.matches('textarea'))stopIntro()});
 document.addEventListener('click',e=>{
  const a=e.target.closest('[data-act]')?.dataset.act;if(!a)return;
- if(a.startsWith('pick')){draft=prompts[Number(a.slice(4))];show('home');$('textarea').focus();return}
+ if(a.startsWith('pick')){draft=prompts[Number(a.slice(4))];saveChat();show('home');$('textarea').focus();return}
  if(a.startsWith('card:')){const card=readCards().find(item=>item.id===a.slice(5));if(card)openCard(card,false);return}
- if(a==='unhappy'){sheet('愿意再聊一会儿吗？我在。',[button('继续聊','resume','primary'),button('先不了','inbox')]);return}
+ if(a.startsWith('open:')){const chat=unfinished().find(c=>c.id===a.slice(5));if(chat){loadChat(chat);show('chat')}return}
+ if(a==='unhappy'){sheet('愿意再聊一会儿吗？我在。',[button('继续聊','review-chat','primary'),button('先不了','inbox')]);return}
  if(a==='better'){sheet('心事卡',['<div class="paper quiet-light"><span aria-hidden="true">☼</span><p>很高兴你现在感觉好些了。</p></div>',button('完成','inbox','primary')]);return}
  if(a.startsWith('fix-')){openCorrection(Number(a.slice(4)));return}
  switch(a){
@@ -47,7 +74,10 @@ document.addEventListener('click',e=>{
  case 'prompts':stopIntro();sheet('可以这样开口',prompts.map((p,i)=>button(p,'pick'+i)).concat(button('取消','close')));break;
  case 'send':if(!draft.trim())return;sendLine(draft.trim());break;
  case 'apply':applyCorrection();break;
- case 'end':if(!messages.length){show('home');break}sheet('结束这次聊天？',['<p class="notice">先看心事卡草稿，再选是否留存。</p>',button('结束聊天','finish','primary'),button('继续聊','close')]);break;
+ case 'review-chat':loadChat();show('chat');$('textarea').focus();break;
+ case 'sessions':conversationList();break;
+ case 'end':sheet('结束这次聊天？',[...(messages.length?[button('整理心事卡','finish','primary')]:[]),button('直接结束','end-now'),button('继续聊','close')]);break;
+ case 'end-now':removeCurrent();show('home');break;
  case 'finish':previewDraft();break;
  case 'edit-card':editCard();break;
  case 'apply-card':applyEdits();break;
@@ -61,7 +91,6 @@ document.addEventListener('click',e=>{
 });
 
 let understanding='', target=0;
-function resetChat(){understanding='';target=0;pendingCard=null}
 function renderChat(body){
  $('#top').innerHTML=button('‹ 小屋','home','quiet')+'<h2>小屿 <small>AI</small></h2>'+button('结束这次','end','quiet');
  body.innerHTML='<div id="log" role="log"></div><div class="chatbar"><textarea rows="1" aria-label="聊天输入" placeholder="继续说……"></textarea>'+button('发送 ↑','send','primary')+'</div>';
@@ -86,7 +115,7 @@ function sendLine(line){
  const direct=line.match(/^(?:我更在意的是|其实我在意的是|我想纠正一下)[，,：:\s]*(.+)$/)||line.match(/^不是.+?[，,]是(.+)$/);
  if(direct)understanding=direct[1];
  messages.push(['me',line],['ai',direct?'明白了，你在意的是「'+understanding+'」。你可以接着说。':answer(line),direct?'已按你的说法修正':'']);
- draft='';$('#scene').value='resume';show('chat');
+ draft='';saveChat();$('#scene').value='resume';show('chat');
 }
 function openCorrection(i){
  target=i;
@@ -97,7 +126,7 @@ function applyCorrection(){
  const value=$('#revision').value.trim();if(!value)return;
  pendingCard=null;understanding=value;messages[target][2]='这句已纠正';
  messages.push(['me',value,'我的纠正'],['ai','我听明白了。你想让我记住的是「'+value+'」。你可以慢慢说。','已按你的说法修正']);
- show('chat');
+ saveChat();show('chat');
 }
 const cardPrefix='warm-isle:wireframe:card:';
 function readCards(){
@@ -123,7 +152,7 @@ function createDraft(){
 }
 function previewDraft(){
  if(!messages.length)return;
- pendingCard??=createDraft();
+ pendingCard??=createDraft();saveChat();
  sheet('心事卡草稿',['<div class="paper"><h4></h4><p></p></div>',
   '<div class="card-actions">'+button('返回聊天','close')+button('编辑','edit-card')+button('确认内容','keep-options','primary')+'</div>']);
  $('.paper h4').textContent=pendingCard.title;
@@ -156,7 +185,7 @@ function finishChat(choice){
   const link=document.createElement('a');link.href=URL.createObjectURL(file);link.download='暖屿心事卡.txt';
   document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(link.href),30000);
  }
- resetChat();messages=[];draft='';$('#scene').value='first';show('home');
+ removeCurrent();show('home');
  if(choice==='keep-inbox')openCard(card,true);
 }
 function cardDate(time){return new Date(time).toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric'})}
@@ -208,6 +237,8 @@ function renderInbox(body){
   body.append(entry);
  }
 }
+loadChat(unfinished()[0]);
+if(messages.length||draft)$('#scene').value='resume';
 if(location.hash==='#tomorrow'){
  $('#scene').value='tomorrow';
  show('inbox');
