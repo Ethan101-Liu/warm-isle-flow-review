@@ -112,8 +112,9 @@ function answer(line){
 }
 function sendLine(line){
  pendingCard=null;
- const direct=line.match(/^(?:我更在意的是|其实我在意的是|我想纠正一下)[，,：:\s]*(.+)$/)||line.match(/^不是.+?[，,]是(.+)$/);
- if(direct)understanding=direct[1];
+ const focus=line.match(/^我(?:最)?在意的是(.+)/u);
+ const direct=readCorrection(line)||(focus&&{text:focus[1]});
+ if(direct)understanding=direct.text;
  messages.push(['me',line],['ai',direct?'明白了，你在意的是「'+understanding+'」。你可以接着说。':answer(line),direct?'已按你的说法修正':'']);
  draft='';saveChat();$('#scene').value='resume';show('chat');
 }
@@ -125,7 +126,7 @@ function openCorrection(i){
 function applyCorrection(){
  const value=$('#revision').value.trim();if(!value)return;
  pendingCard=null;understanding=value;messages[target][2]='这句已纠正';
- messages.push(['me',value,'我的纠正'],['ai','我听明白了。你想让我记住的是「'+value+'」。你可以慢慢说。','已按你的说法修正']);
+ messages.push(['me',value,'我的纠正',target],['ai','我听明白了。你想让我记住的是「'+value+'」。你可以慢慢说。','已按你的说法修正']);
  saveChat();show('chat');
 }
 const cardPrefix='warm-isle:wireframe:card:';
@@ -140,15 +141,60 @@ function readCards(){
  return cards.sort((a,b)=>b.time-a.time);
 }
 let pendingCard=null;
+// Use the speaker's own words. A simulated AI reply is never evidence about the user.
+function readCorrection(line){
+ const contrast=line.match(/(?:并不是|不是)(.+?)[，,。；;\s]*(?:而是|，是|,是)(.+)/u);
+ if(contrast)return {text:contrast[2].trim(),rejected:contrast[1].trim()};
+ const explicit=line.match(/^(?:我(?:更|真正)在意的是|其实我在意的是|我想纠正一下|我的意思是)[，,：:\s]*(.+)$/u);
+ return explicit?{text:explicit[1],rejected:''}:null;
+}
 function createDraft(){
- const lines=messages.filter(([who])=>who==='me').map(([,line])=>line);
- const first=lines[0];
- const feelings=['委屈','难过','开心','失望','有点累','紧张','生气','焦虑'];
- const emotion=lines.findLast(line=>feelings.some(word=>line.includes(word)));
- const focus=understanding||(lines.length>1?lines.at(-1):first.includes('没跟我道歉')?'希望对方能说声抱歉。':'');
- const paragraphs=[first,focus&&focus!==first?'我在意的：'+focus:'',emotion&&emotion!==first&&emotion!==focus?'我当时的感觉：'+emotion:''].filter(Boolean);
- const title=Array.from(focus||first);
- return {id:crypto.randomUUID(),time:Date.now(),title:title.slice(0,14).join('')+(title.length>14?'…':''),body:paragraphs.join('\n\n')};
+ const feeling=/委屈|难过|伤心|不开心|开心|失望|累|疲惫|紧张|生气|焦虑|担心|害怕|心酸|孤单|孤独|无力|沮丧|安心|释然|愤怒|挫败|烦躁|心烦|高兴|轻松|难受|压力很大/u;
+ const concern=/在意|介意|希望|盼着|期待|对我.*重要|让我.*的是|最.*的是/u;
+ const filler=/^(?:嗯+|哦+|好的?|谢谢(?:你)?|先这样(?:吧)?|就这样(?:吧)?|今天先到这[里儿]?|不聊了|你好|再见)$/u;
+ const events=[],focus=[],emotions=[],corrections=new Map();
+ const rejected=[];
+ for(const [who,line,note,source] of messages){
+  if(who!=='me')continue;
+  const clean=line.trim().replace(/[。！？!?]+$/u,'');
+  const correction=readCorrection(clean);
+  if(note==='我的纠正'||correction){
+   const text=correction?.text||clean;
+   const prior=Number.isInteger(source)?messages[source-1]:null;
+   if(prior?.[0]==='me'&&concern.test(prior[1])){
+    rejected.push(prior[1].trim().replace(/[。！？!?]+$/u,''));
+   }
+   const key=source??(correction?.rejected||'当前理解');
+   if(corrections.has(key))rejected.push(corrections.get(key));
+   corrections.set(key,text);
+   if(correction?.rejected)rejected.push(correction.rejected);
+   continue;
+  }
+  for(const sentence of clean.split(/[。！？!?；;\n]+/u)){
+   const text=sentence.trim();
+   if(!text||filler.test(text))continue;
+   if(concern.test(text))focus.push(text);
+   else if(feeling.test(text))emotions.push(text);
+   else events.push(text);
+  }
+ }
+ const unique=list=>[...new Set(list)].filter(text=>!rejected.some(old=>old&&text.includes(old)));
+ const revisions=[...new Set(corrections.values())];
+ const topics=unique(focus).filter(text=>!revisions.some(value=>text.includes(value)));
+ const sections=[];
+ function add(label,items){
+  if(items.length)sections.push(label+'：'+items.join('。')+'。');
+ }
+ const facts=unique(events);
+ // Keep the opening context and the most concrete detail, even when it came mid-chat.
+ const detail=facts.slice(1).reduce((best,line)=>line.length>best.length?line:best,'');
+ add('发生的事',[facts[0],detail].filter(Boolean));
+ add('我在意的',topics.slice(-2));
+ add('我的感受',unique(emotions).slice(-2));
+ add('我想说清楚的',revisions);
+ const headline=revisions.at(-1)||topics.at(-1)||facts[0]||unique(emotions)[0]||'今天的心事';
+ const title=Array.from(headline.replace(/[。！？]+$/u,''));
+ return {id:crypto.randomUUID(),time:Date.now(),title:title.slice(0,14).join('')+(title.length>14?'…':''),body:sections.join('\n\n')||'今天还没有展开说。'};
 }
 function previewDraft(){
  if(!messages.length)return;
@@ -186,7 +232,13 @@ function finishChat(choice){
   document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(link.href),30000);
  }
  removeCurrent();show('home');
- if(choice==='keep-inbox')openCard(card,true);
+ if(choice==='keep-inbox'){openCard(card,true);return}
+ const receipt=document.createElement('p');
+ receipt.className='retention-receipt';
+ receipt.setAttribute('role','status');
+ $('#body').prepend(receipt);
+ receipt.textContent=choice==='keep-file'?'已发起文本下载。':'本次未留卡。';
+ setTimeout(()=>receipt.remove(),4000);
 }
 function cardDate(time){return new Date(time).toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric'})}
 function encouragement(card){
