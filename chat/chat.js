@@ -114,12 +114,23 @@ function finishChat(){
 function cardDate(time){return new Date(time).toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric'})}
 function openCard(card,justSaved){
  sheet('心事卡',[
-  '<div class="paper"><small></small><h4></h4><p></p></div>',
+  '<div class="paper" id="card-faces"><div class="face-front"><small></small><h4></h4><p></p></div><div class="face-back" hidden>明天再来看吧</div></div>',
+  '<button type="button" id="flip" aria-controls="card-faces">看背面</button>',
   ...(justSaved?['<small class="saved">✓ 已存入信箱</small>',button('查看信箱','inbox','primary'),button('回小屋','home')]:[button('返回信箱','close','primary')])
  ]);
  $('.paper small').textContent=cardDate(card.time);
  $('.paper h4').textContent=card.title;
  $('.paper p').textContent=card.body;
+ const front=$('.face-front'),back=$('.face-back'),flip=$('#flip');
+ flip.onclick=()=>{
+  const showBack=back.hidden;
+  front.hidden=showBack;
+  back.hidden=!showBack;
+  flip.textContent=showBack?'看正面':'看背面';
+  if(!matchMedia('(prefers-reduced-motion: reduce)').matches){
+   $('.paper').animate([{transform:'perspective(600px) rotateY('+ (showBack?-27:27) +'deg)'},{transform:'none'}],{duration:190,easing:'ease-out'});
+  }
+ };
 }
 function renderInbox(body){
  let cards;
