@@ -116,7 +116,7 @@ function openCard(card,justSaved){
  sheet('心事卡',[
   '<div class="paper" id="card-faces"><div class="face-front"><small></small><h4></h4><p></p></div><div class="face-back" hidden>明天再来看吧</div></div>',
   '<button type="button" id="flip" aria-controls="card-faces">看背面</button>',
-  ...(justSaved?['<small class="saved">✓ 已存入信箱</small>',button('查看信箱','inbox','primary'),button('回小屋','home')]:[button('返回信箱','close','primary')])
+  ...(justSaved?['<small class="saved">✓ 已存入信箱</small>','<div class="card-actions">'+button('查看信箱','inbox','primary')+button('回小屋','home')+'</div>']:[button('返回信箱','close','primary')])
  ]);
  $('.paper small').textContent=cardDate(card.time);
  $('.paper h4').textContent=card.title;
