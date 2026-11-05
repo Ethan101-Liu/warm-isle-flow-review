@@ -120,7 +120,7 @@ function previewDraft(){
  if(!messages.length)return;
  pendingCard??=createDraft();
  sheet('心事卡草稿',['<div class="paper"><h4></h4><p></p></div>',
-  button('编辑','edit-card','quiet'),button('确认内容','keep-options','primary'),button('返回聊天','close','quiet')]);
+  '<div class="card-actions">'+button('返回聊天','close')+button('编辑','edit-card')+button('确认内容','keep-options','primary')+'</div>']);
  $('.paper h4').textContent=pendingCard.title;
  $('.paper p').textContent=pendingCard.body;
 }
@@ -156,10 +156,10 @@ function finishChat(choice){
 }
 function cardDate(time){return new Date(time).toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric'})}
 function openCard(card,justSaved){
+ const flipButton='<button type="button" id="flip" aria-controls="card-faces">看背面</button>';
  sheet('心事卡',[
   '<div class="paper" id="card-faces"><div class="face-front"><small></small><h4></h4><p></p></div><div class="face-back" hidden>明天再来看吧</div></div>',
-  '<button type="button" id="flip" aria-controls="card-faces">看背面</button>',
-  ...(justSaved?['<small class="saved">✓ 已存入信箱</small>','<div class="card-actions">'+button('查看信箱','inbox','primary')+button('回小屋','home')+'</div>']:[button('返回信箱','close','primary')])
+  ...(justSaved?['<small class="saved">✓ 已存入信箱</small>','<div class="card-actions">'+button('查看信箱','inbox','primary')+flipButton+button('回小屋','home')+'</div>']:[flipButton,button('返回信箱','close','primary')])
  ]);
  $('.paper small').textContent=cardDate(card.time);
  $('.paper h4').textContent=card.title;
