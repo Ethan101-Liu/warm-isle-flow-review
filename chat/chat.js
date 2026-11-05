@@ -31,13 +31,15 @@ function updateSend(){$('[data-act="send"]').disabled=!draft.trim()}
 function fresh(){resetChat();messages=[];draft='';$('#scene').value='first';show('home');$('textarea').focus()}
 function replay(){show('home');intro()}
 $('#replay').onclick=replay;
-$('#scene').onchange=e=>{resetChat();draft='';messages=e.target.value==='resume'?[['me','我今天有点累。'],['ai','我在听。']]:[];show('home')};
+$('#scene').onchange=e=>{if(e.target.value==='tomorrow'){show('inbox');return}resetChat();draft='';messages=e.target.value==='resume'?[['me','我今天有点累。'],['ai','我在听。']]:[];show('home')};
 document.addEventListener('input',e=>{if(e.target.matches('#revision')){$('[data-act=apply]').disabled=!e.target.value.trim()}else if(e.target===document.querySelector('#body textarea')){draft=e.target.value;updateSend()}});
 document.addEventListener('focusin',e=>{if(e.target.matches('textarea'))stopIntro()});
 document.addEventListener('click',e=>{
  const a=e.target.closest('[data-act]')?.dataset.act;if(!a)return;
  if(a.startsWith('pick')){draft=prompts[Number(a.slice(4))];show('home');$('textarea').focus();return}
  if(a.startsWith('card:')){const card=readCards().find(item=>item.id===a.slice(5));if(card)openCard(card,false);return}
+ if(a==='unhappy'){sheet('愿意再聊一会儿吗？我在。',[button('继续聊','resume','primary'),button('先不了','inbox')]);return}
+ if(a==='better'){sheet('心事卡',['<div class="paper quiet-light"><span aria-hidden="true">☼</span><p>很高兴你现在感觉好些了。</p></div>',button('完成','inbox','primary')]);return}
  if(a.startsWith('fix-')){openCorrection(Number(a.slice(4)));return}
  switch(a){
  case 'home':case 'settings':case 'inbox':case 'login':show(a);break;
@@ -45,7 +47,7 @@ document.addEventListener('click',e=>{
  case 'prompts':stopIntro();sheet('可以这样开口',prompts.map((p,i)=>button(p,'pick'+i)).concat(button('取消','close')));break;
  case 'send':if(!draft.trim())return;sendLine(draft.trim());break;
  case 'apply':applyCorrection();break;
- case 'end':sheet('结束这次聊天？',['<p class="notice">先看心事卡草稿，再选是否留存。</p>',button('结束聊天','finish','primary'),button('继续聊','close')]);break;
+ case 'end':if(!messages.length){show('home');break}sheet('结束这次聊天？',['<p class="notice">先看心事卡草稿，再选是否留存。</p>',button('结束聊天','finish','primary'),button('继续聊','close')]);break;
  case 'finish':previewDraft();break;
  case 'edit-card':editCard();break;
  case 'apply-card':applyEdits();break;
@@ -103,6 +105,9 @@ function readCards(){
  for(const key of Object.keys(localStorage)){
   if(key.startsWith(cardPrefix))cards.push(JSON.parse(localStorage.getItem(key)));
  }
+ if(!cards.length && $('#scene').value==='tomorrow'){
+  cards.push({id:'preview',time:Date.now(),title:'那句没等到的道歉',body:'他临时取消了见面。我在意的是，他没有道歉。'});
+ }
  return cards.sort((a,b)=>b.time-a.time);
 }
 let pendingCard=null;
@@ -155,20 +160,32 @@ function finishChat(choice){
  if(choice==='keep-inbox')openCard(card,true);
 }
 function cardDate(time){return new Date(time).toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric'})}
+function encouragement(card){
+ const text=card.body;
+ if(text.includes('道歉'))return '那句没等到的道歉，当时让你在意，今天也可以慢慢说。';
+ if(text.includes('累'))return '累的时候，也可以给自己一点歇一歇的时间。';
+ return '昨天写下的心事，今天也可以按自己的步子慢慢理清。';
+}
 function openCard(card,justSaved){
+ const today=new Date();
+ if($('#scene').value==='tomorrow')today.setDate(today.getDate()+1);
+ today.setHours(0,0,0,0);
+ const unlocked=!justSaved && card.time<today.getTime();
  const flipButton='<button type="button" id="flip" aria-controls="card-faces">看背面</button>';
  sheet('心事卡',[
   '<div class="paper" id="card-faces"><div class="face-front"><small></small><h4></h4><p></p></div><div class="face-back" hidden>明天再来看吧</div></div>',
-  ...(justSaved?['<small class="saved">✓ 已存入信箱</small>','<div class="card-actions">'+button('查看信箱','inbox','primary')+flipButton+button('回小屋','home')+'</div>']:[flipButton,button('返回信箱','close','primary')])
+  ...(justSaved?['<small class="saved">✓ 已存入信箱</small>','<div class="card-actions">'+button('查看信箱','inbox','primary')+flipButton+button('回小屋','home')+'</div>']:['<div id="mood" hidden><p>现在感觉怎么样？</p><div>'+button('还不开心','unhappy')+button('心情好了','better')+'</div></div>','<div class="card-actions">'+flipButton+button('返回信箱','close')+'</div>'])
  ]);
  $('.paper small').textContent=cardDate(card.time);
  $('.paper h4').textContent=card.title;
  $('.paper p').textContent=card.body;
  const front=$('.face-front'),back=$('.face-back'),flip=$('#flip');
+ if(unlocked)back.textContent=encouragement(card);
  flip.onclick=()=>{
   const showBack=back.hidden;
   front.hidden=showBack;
   back.hidden=!showBack;
+  if(!justSaved)$('#mood').hidden=!(showBack && unlocked);
   flip.textContent=showBack?'看正面':'看背面';
   if(!matchMedia('(prefers-reduced-motion: reduce)').matches){
    $('.paper').animate([{transform:'perspective(600px) rotateY('+ (showBack?-27:27) +'deg)'},{transform:'none'}],{duration:190,easing:'ease-out'});
@@ -186,9 +203,12 @@ function renderInbox(body){
   const entry=document.createElement('button');
   entry.className='mailCard';entry.dataset.act='card:'+card.id;
   entry.innerHTML='<small></small><strong></strong><span aria-hidden="true">›</span>';
-  entry.querySelector('small').textContent=cardDate(card.time);
+  entry.querySelector('small').textContent=(card.id==='preview'?'示例 · ':'')+cardDate(card.time);
   entry.querySelector('strong').textContent=card.title;
   body.append(entry);
  }
 }
-show('home');intro();
+if(location.hash==='#tomorrow'){
+ $('#scene').value='tomorrow';
+ show('inbox');
+}else{show('home');intro()}
