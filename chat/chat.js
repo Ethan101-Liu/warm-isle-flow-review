@@ -45,7 +45,6 @@ document.addEventListener('click',e=>{
  case 'signin':signed=true;show('home');break;case 'skip':stopIntro();break;case 'replay':replay();break;
  case 'prompts':stopIntro();sheet('可以这样开口',prompts.map((p,i)=>button(p,'pick'+i)).concat(button('取消','close')));break;
  case 'send':if(!draft.trim())return;sendLine(draft.trim());break;
- case 'listen':case 'sort':mode=a;renderModes();break;
  case 'apply':applyCorrection();break;
  case 'end':sheet('结束这次聊天？',['<p class="notice">结束后，这段对话将无法继续。</p>',button('结束聊天','finish','primary'),button('继续聊','close')]);break;
  case 'finish':resetChat();messages=[];draft='';$('#scene').value='first';show('ended');break;
@@ -56,16 +55,11 @@ document.addEventListener('click',e=>{
  }
 });
 
-let mode='listen', understanding='', target=0;
-function resetChat(){mode='listen';understanding='';target=0}
-function renderModes(){
- for(const m of ['listen','sort']){const el=$('[data-act='+m+']');el.setAttribute('aria-pressed',String(m===mode))}
- $('#modeHint').textContent=mode==='listen'?'我在听，你可以慢慢说。':'下一句，一起理一理发生了什么。';
-}
+let understanding='', target=0;
+function resetChat(){understanding='';target=0}
 function renderChat(body){
  $('#top').innerHTML=button('‹ 小屋','home','quiet')+'<h2>小屿 <small>AI</small></h2>'+button('结束这次','end','quiet');
- body.innerHTML='<div class="prefs">'+button('先听我说','listen')+button('帮我理一理','sort')+'</div><small id="modeHint" aria-live="polite"></small><div id="log" role="log"></div><div class="chatbar"><textarea rows="1" aria-label="聊天输入" placeholder="继续说……"></textarea>'+button('发送 ↑','send','primary')+'</div>';
- renderModes();
+ body.innerHTML='<div id="log" role="log"></div><div class="chatbar"><textarea rows="1" aria-label="聊天输入" placeholder="继续说……"></textarea>'+button('发送 ↑','send','primary')+'</div>';
  const log=$('#log');
  messages.forEach(([who,line,note],i)=>{
   const group=document.createElement('div');group.className='turn '+(who==='me'?'out':'');
@@ -77,8 +71,7 @@ function renderChat(body){
  $('textarea').value=draft;updateSend();log.scrollTop=log.scrollHeight;
 }
 function answer(line){
- if(understanding)return mode==='sort'?'就「'+understanding+'」这件事，你最希望有什么变化？':'你刚才说「'+understanding+'」。我记着，你接着说。';
- if(mode==='sort')return '我们从「'+line+'」说起。这里面哪件事最让你在意？';
+ if(understanding)return '你刚才说「'+understanding+'」。我记着，你接着说。';
  if(line.includes('取消'))return '他临时取消了见面。是原来的安排被打乱，让你觉得难受吗？';
  if(line.includes('累'))return '你说有点累。想从今天的哪一刻说起？';
  return '你说「'+line+'」。我在听，你愿意再说一点吗？';
@@ -97,7 +90,7 @@ function openCorrection(i){
 function applyCorrection(){
  const value=$('#revision').value.trim();if(!value)return;
  understanding=value;messages[target][2]='这句已纠正';
- messages.push(['me',value,'我的纠正'],['ai','我听明白了。你想让我记住的是「'+value+'」。'+(mode==='sort'?'我们可以从这一点继续理。':'你可以慢慢说。'),'已按你的说法修正']);
+ messages.push(['me',value,'我的纠正'],['ai','我听明白了。你想让我记住的是「'+value+'」。你可以慢慢说。','已按你的说法修正']);
  show('chat');
 }
 show('home');intro();
